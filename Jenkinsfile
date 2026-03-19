@@ -47,7 +47,7 @@ pipeline {
                     }
 
                     sh """
-                    docker run -d -p 9090:8080 --name tomcat-container-${env.BUILD_NUMBER} my-app:${env.BUILD_NUMBER}
+                    docker run -d -p 9090:8080 --name tomcat-container-${env.BUILD_NUMBER} mywebapp:${env.BUILD_NUMBER}
                     """
                 }
             }
