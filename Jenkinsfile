@@ -32,5 +32,14 @@ pipeline {
 
             }
         }
+
+        stage('run the container') {
+            steps {
+                sh "CONTAINER_ID=`docker ps | awk '{print $1}' | tail -1`"
+                sh "docker stop ${CONTAINER_ID}"
+                sh "docker rm ${CONTAINER_ID}"
+                sh "docker run -d -p 9090:8080 --name tomcat-container-$BUILD_NUMBER my-app:$BUILD_NUMBER"
+            }
+        }
     }
 }
