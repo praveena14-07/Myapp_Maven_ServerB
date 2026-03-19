@@ -33,12 +33,23 @@ pipeline {
             }
         }
 
-        stage('run the container') {
+        stage('Run the container') {
             steps {
-                sh "CONTAINER_ID=`docker ps | awk '{print $1}' | tail -1`"
-                sh "docker stop ${CONTAINER_ID}"
-                sh "docker rm ${CONTAINER_ID}"
-                sh "docker run -d -p 9090:8080 --name tomcat-container-$BUILD_NUMBER my-app:$BUILD_NUMBER"
+                script {
+                    def containerId = sh(
+                        script: "docker ps -q | head -n 1",
+                        returnStdout: true
+                    ).trim()
+
+                    if (containerId) {
+                        sh "docker stop ${containerId}"
+                        sh "docker rm ${containerId}"
+                    }
+
+                    sh """
+                    docker run -d -p 9090:8080 --name tomcat-container-${env.BUILD_NUMBER} my-app:${env.BUILD_NUMBER}
+                    """
+                }
             }
         }
     }
