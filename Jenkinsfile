@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'Node_ServerB' }
 
     stages {
         stage('Checkout') {
