@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label 'Jenkins_ServerB'
+        label 'docker_agent'
         }
     
     stages {
