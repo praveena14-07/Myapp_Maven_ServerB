@@ -1,8 +1,8 @@
 pipeline {
     agent {
         docker {
-            image 'docker:24-dind'
-            args '--privileged -v /tmp:/tmp'
+            image 'maven:3.9-eclipse-temurin-17'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
 
@@ -11,24 +11,6 @@ pipeline {
     }
 
     stages {
-
-        stage('Start Docker Daemon') {
-            steps {
-                sh '''
-                dockerd-entrypoint.sh > /tmp/dockerd.log 2>&1 &
-                sleep 15
-                docker info
-                '''
-            }
-        }
-
-        stage('Install Tools') {
-            steps {
-                sh '''
-                apk add --no-cache maven openjdk17 git
-                '''
-            }
-        }
 
         stage('Checkout') {
             steps {
@@ -42,6 +24,12 @@ pipeline {
             }
         }
 
+        stage('Verify Docker Access') {
+            steps {
+                sh 'docker version'
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t ${IMAGE_NAME}:v${BUILD_NUMBER} .'
@@ -52,25 +40,31 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub_credentials',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS'
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                    docker login -u $USER -p $PASS
-                    docker tag ${IMAGE_NAME}:v${BUILD_NUMBER} $USER/${IMAGE_NAME}:v${BUILD_NUMBER}
-                    docker push $USER/${IMAGE_NAME}:v${BUILD_NUMBER}
+                    docker login -u $DOCKER_USER -p $DOCKER_PASS
+                    docker tag ${IMAGE_NAME}:v${BUILD_NUMBER} $DOCKER_USER/${IMAGE_NAME}:v${BUILD_NUMBER}
+                    docker push $DOCKER_USER/${IMAGE_NAME}:v${BUILD_NUMBER}
                     '''
                 }
             }
         }
 
-        stage('Run Container (inside DinD)') {
+        stage('Deploy Container') {
             steps {
                 sh '''
                 docker rm -f ${IMAGE_NAME} || true
                 docker run -d -p 9090:8080 --name ${IMAGE_NAME} ${IMAGE_NAME}:v${BUILD_NUMBER}
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker system prune -f || true'
         }
     }
 }
