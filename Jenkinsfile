@@ -1,5 +1,9 @@
 pipeline {
-    agent { label 'Node_ServerB' }
+    agent {
+        docker {
+                 image 'maven:3.9-eclipse-temurin-17'
+                    }
+           }
 
     stages {
         stage('Checkout') {
