@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label ocker-node'
+        label 'docker-node'
         }
     
     stages {
