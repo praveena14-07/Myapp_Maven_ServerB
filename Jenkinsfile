@@ -2,8 +2,12 @@ pipeline {
     agent {
         docker {
             image 'docker:24-dind'
-            args '--privileged'
+            args '--privileged -v /tmp:/tmp'
         }
+    }
+
+    environment {
+        IMAGE_NAME = "mywebapp"
     }
 
     stages {
@@ -11,8 +15,8 @@ pipeline {
         stage('Start Docker Daemon') {
             steps {
                 sh '''
-                dockerd-entrypoint.sh &
-                sleep 10
+                dockerd-entrypoint.sh > /tmp/dockerd.log 2>&1 &
+                sleep 15
                 docker info
                 '''
             }
@@ -31,34 +35,41 @@ pipeline {
                 git 'https://github.com/praveena14-07/Myapp_Maven_ServerB.git'
             }
         }
-        
-        stage('Build') {
+
+        stage('Build Maven') {
             steps {
-                sh "mvn clean package"
+                sh 'mvn clean package'
             }
         }
-        
+
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t mywebapp:v${BUILD_NUMBER} ."
+                sh 'docker build -t ${IMAGE_NAME}:v${BUILD_NUMBER} .'
             }
         }
-        
-        stage('Publish to Docker Hub') {
+
+        stage('Push to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub_credentials', passwordVariable: 'dockerHubPassword', usernameVariable: 'dockerHubUser')]) {
-                    sh "docker login -u ${env.dockerHubUser} -p ${env.dockerHubPassword}"
-                    sh "docker tag mywebapp:v${BUILD_NUMBER} ${env.dockerHubUser}/mywebapp:v${BUILD_NUMBER}"
-                    sh "docker push ${env.dockerHubUser}/mywebapp:v${BUILD_NUMBER}"
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub_credentials',
+                    usernameVariable: 'USER',
+                    passwordVariable: 'PASS'
+                )]) {
+                    sh '''
+                    docker login -u $USER -p $PASS
+                    docker tag ${IMAGE_NAME}:v${BUILD_NUMBER} $USER/${IMAGE_NAME}:v${BUILD_NUMBER}
+                    docker push $USER/${IMAGE_NAME}:v${BUILD_NUMBER}
+                    '''
                 }
             }
         }
 
-        stage('Run Container') {
+        stage('Run Container (inside DinD)') {
             steps {
-                sh """
-                docker run -d -p 9090:8080 --name tomcat-container-${env.BUILD_NUMBER} mywebapp:v${env.BUILD_NUMBER}
-                """
+                sh '''
+                docker rm -f ${IMAGE_NAME} || true
+                docker run -d -p 9090:8080 --name ${IMAGE_NAME} ${IMAGE_NAME}:v${BUILD_NUMBER}
+                '''
             }
         }
     }
