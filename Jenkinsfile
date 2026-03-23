@@ -22,7 +22,7 @@ pipeline {
         
         stage('Build Docker Image') {
             steps {
-                sh "build -t mywebapp:v${BUILD_NUMBER} ."
+                sh "docker build -t mywebapp:v${BUILD_NUMBER} ."
             }
         }
         
