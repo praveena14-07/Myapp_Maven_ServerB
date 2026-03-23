@@ -1,10 +1,21 @@
 pipeline {
     agent {
         docker {
-            image 'maven:3.9-eclipse-temurin-17'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
+            image 'docker:24-dind'
+            args '--privileged'
         }
     }
+
+    stages {
+        stage('Start Docker Daemon') {
+            steps {
+                sh '''
+                dockerd-entrypoint.sh &
+                sleep 10
+                docker info
+                '''
+            }
+        }
     stages {
         stage('Checkout') {
             steps {
