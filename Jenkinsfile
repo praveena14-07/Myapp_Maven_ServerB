@@ -1,70 +1,62 @@
 pipeline {
     agent {
-        docker {
-            image 'maven:3.9-eclipse-temurin-17'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+         docker {
+              image 'maven:3.9-eclipse-temurin-17'
+                }
+           }
 
-    environment {
-        IMAGE_NAME = "mywebapp"
-    }
 
     stages {
-
         stage('Checkout') {
             steps {
-                git 'https://github.com/praveena14-07/Myapp_Maven_ServerB.git'
+                // Get some code from a GitHub repository
+                checkout([$class: 'GitSCM', branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/praveena14-07/Myapp_Maven.git']]])
             }
         }
-
-        stage('Build Maven') {
+    } 
+        
+        stage('Build') {
             steps {
-                sh 'mvn clean package'
+                // Run Maven on a Unix agent.
+                sh "mvn clean package"
             }
         }
-
-        stage('Verify Docker Access') {
-            steps {
-                sh 'docker version'
-            }
-        }
-
+        
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t ${IMAGE_NAME}:v${BUILD_NUMBER} .'
+                sh "docker build -t mywebapp:v${BUILD_NUMBER} ."
+            }
+        }
+        
+        stage('Publish to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub_credentials', passwordVariable: 'dockerHubPassword', usernameVariable: 'dockerHubUser')]) {
+        	        sh "docker login -u ${env.dockerHubUser} -p ${env.dockerHubPassword}"
+                    sh "docker tag mywebapp:v${BUILD_NUMBER} ${env.dockerHubUser}/mywebapp:v${BUILD_NUMBER}"
+                    sh "docker push ${env.dockerHubUser}/mywebapp:v${BUILD_NUMBER}"
+                }
+
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Run the container') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub_credentials',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    docker login -u $DOCKER_USER -p $DOCKER_PASS
-                    docker tag ${IMAGE_NAME}:v${BUILD_NUMBER} $DOCKER_USER/${IMAGE_NAME}:v${BUILD_NUMBER}
-                    docker push $DOCKER_USER/${IMAGE_NAME}:v${BUILD_NUMBER}
-                    '''
+                script {
+                    def containerId = sh(
+                        script: "docker ps -q | head -n 1",
+                        returnStdout: true
+                    ).trim()
+
+                    if (containerId) {
+                        sh "docker stop ${containerId}"
+                        sh "docker rm ${containerId}"
+                    }
+
+                    sh """
+                    docker run -d -p 9090:8080 --name tomcat-container-${env.BUILD_NUMBER} mywebapp:v${env.BUILD_NUMBER}
+                    """
                 }
             }
-        }
-
-        stage('Deploy Container') {
-            steps {
-                sh '''
-                docker rm -f ${IMAGE_NAME} || true
-                docker run -d -p 9090:8080 --name ${IMAGE_NAME} ${IMAGE_NAME}:v${BUILD_NUMBER}
-                '''
-            }
-        }
-    }
-
-    post {
-        always {
-            sh 'docker system prune -f || true'
         }
     }
 }
